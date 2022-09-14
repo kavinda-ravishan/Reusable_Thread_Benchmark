@@ -1,0 +1,175 @@
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <shared_mutex>
+#include <functional>
+#include <chrono>
+#include <random>
+
+struct Timer
+{
+    std::chrono::time_point<std::chrono::steady_clock> start, end;
+    std::chrono::duration<float> duration;
+
+    Timer()
+    {
+        start = std::chrono::high_resolution_clock::now();
+    }
+    ~Timer()
+    {
+        end = std::chrono::high_resolution_clock::now();
+        duration = end - start;
+
+        float ms = duration.count() * 1000.0f;
+        std::cout << ms << " ms\n";
+    }
+};
+
+class ReusableThread
+{
+public:
+    ReusableThread()
+    {
+        m_work_assigned = false;
+        done = false;
+        m_t = std::thread([this]()
+        {
+            while (!done)
+            {
+                while (!m_work_assigned && !done);
+                if(!done) m_work();
+                m_work_assigned = false;
+            }
+        });
+    }
+    void join()
+    {
+        done = true;
+        m_t.join();
+    }
+
+    void post_work(std::function<void()> func)
+    {
+        m_work = func;
+        m_work_assigned = true;
+    }
+
+    void wait()
+    {
+        while (m_work_assigned);
+    }
+private:
+    std::thread m_t;
+    std::function<void()> m_work;
+    std::atomic_bool m_work_assigned;
+    bool done;
+};
+
+// with sleep = 10us
+
+// wait and notify
+class ReusableThreadWait
+{
+public:
+    ReusableThreadWait()
+    {
+        m_work_assigned = false;
+        done = false;
+        m_t = std::thread([this]()
+        {
+            std::unique_lock<std::mutex> lck(m_mutex);
+            while (!done)
+            {
+                while (!m_work_assigned && !done)
+                {
+                    m_cv.wait(lck);
+                }
+                if(!done) m_work();
+                m_work_assigned = false;
+            }
+        });
+    }
+    void join()
+    {
+        done = true;
+        m_cv.notify_one();
+        m_t.join();
+    }
+
+    void post_work(std::function<void()> func)
+    {
+        m_work = func;
+        m_work_assigned = true;
+        m_cv.notify_one();
+    }
+
+    void wait()
+    {
+        while (m_work_assigned);
+    }
+private:
+    std::thread m_t;
+    std::function<void()> m_work;
+    std::atomic_bool m_work_assigned;
+    std::mutex m_mutex;
+    std::condition_variable m_cv;
+    bool done;
+};
+
+
+
+void print_num(const int seed)
+{
+    int sum = 0;
+    std::srand(seed);
+    for(int i=0; i<100000; i++)
+    {
+        sum += rand()%100;
+    }
+}
+
+int main()
+{
+    {
+        Timer t;
+        for(int i=0; i<100; i++)
+        {
+            print_num(11);
+            print_num(22);
+        }
+    }
+
+    ReusableThread t1, t2;
+    {
+        Timer t;
+        for(int i=0; i<100; i++)
+        {
+            t1.post_work([]{print_num(11);});
+            t2.post_work([]{print_num(22);});
+
+            t1.wait();
+            t2.wait();
+        }
+    }
+    
+    t1.join();
+    t2.join();
+
+    ReusableThreadWait t3, t4;
+    {
+        Timer t;
+        for(int i=0; i<100; i++)
+        {
+            t3.post_work([]{print_num(11);});
+            t4.post_work([]{print_num(22);});
+
+            t3.wait();
+            t4.wait();
+        }
+    }
+    
+    t3.join();
+    t4.join();
+    
+    return 0;
+}
