@@ -8,15 +8,15 @@
 #include <future>
 #include <array>
 
-#define NUM_THREADS 2
+#define NUM_THREADS 4
 
-const int work_count = 100000; 
-const int cycles_count = 100;
+const int work_count = 0; 
+const int cycles_count = 1000;
 
 struct Timer
 {
 private:
-    std::chrono::time_point<std::chrono::steady_clock> start, end;
+    std::chrono::time_point<std::chrono::high_resolution_clock> start, end;
     std::chrono::duration<float> duration;
     std::string info;
 public:
@@ -283,16 +283,13 @@ int main()
         Timer t("async");
         for(int i=0; i<cycles_count; i++)
         {
-            for(int i=0; i<cycles_count; i++)
+            for(int j=0; j<NUM_THREADS; j++)
             {
-                for(int j=0; j<NUM_THREADS; j++)
-                {
-                    futures[j] = std::async(std::launch::async, [i, j](){print_num(i+j);});
-                }
-                for(auto& f: futures)
-                {
-                    f.wait();
-                }
+                futures[j] = std::async(std::launch::async, [i, j](){print_num(i+j);});
+            }
+            for(auto& f: futures)
+            {
+                f.wait();
             }
         }
     }
