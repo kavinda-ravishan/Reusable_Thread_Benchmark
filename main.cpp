@@ -248,7 +248,7 @@ private:
         }
     }
 
-    bool m_join = false;
+    bool m_join;
     std::mutex m_queue_mutex;
     std::queue<std::function<void()>> m_work_queue;
     unsigned int m_num_threads;
