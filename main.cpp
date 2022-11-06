@@ -12,7 +12,7 @@
 #define NUM_THREADS 8
 
 const int work_count = 10000; 
-const int cycles_count = 10;
+const int cycles_count = 100;
 
 struct Timer
 {
