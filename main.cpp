@@ -9,9 +9,9 @@
 #include <array>
 #include <queue>
 
-#define NUM_THREADS 4
+#define NUM_THREADS 8
 
-const int work_count = 100000; 
+const int work_count = 10000; 
 const int cycles_count = 10;
 
 struct Timer
@@ -253,7 +253,7 @@ private:
     std::queue<std::function<void()>> m_work_queue;
     unsigned int m_num_threads;
     std::vector<std::thread> m_threads;
-    unsigned int m_task_count;
+    std::atomic_uint16_t m_task_count;
 };
 
 void print_num(const int seed)
