@@ -7,11 +7,12 @@
 #include <random>
 #include <future>
 #include <array>
+#include <queue>
 
 #define NUM_THREADS 4
 
-const int work_count = 0; 
-const int cycles_count = 1000;
+const int work_count = 100000; 
+const int cycles_count = 10;
 
 struct Timer
 {
@@ -177,6 +178,84 @@ private:
     bool m_done;
 };
 
+class ThreadPool
+{
+public:
+    ThreadPool(unsigned int num_threads=0): m_task_count(0), m_join(false)
+    {
+        m_num_threads = (num_threads > 0) ? num_threads : std::thread::hardware_concurrency();
+        for(unsigned int i=0; i<m_num_threads; i++)
+        {
+            m_threads.emplace_back(std::thread(ThreadPool::thread_work, this));
+        }
+    }
+
+    void assign(std::function<void()> work)
+    {
+        m_queue_mutex.lock();
+        m_work_queue.push(work);
+        m_queue_mutex.unlock();
+    }
+
+    void join()
+    {
+        m_join = true;
+        for(auto& t : m_threads)
+        {
+            if(t.joinable()) t.join();
+        }
+    }
+
+    void wait_until(const unsigned int task_cout)
+    {
+        while (m_task_count < task_cout && !m_join) std::this_thread::yield();
+        m_task_count = 0;
+    }
+
+    ~ThreadPool()
+    {
+        m_join = true;
+        for(auto& t : m_threads)
+        {
+            if(t.joinable()) t.join();
+        }
+    }
+private:
+    static void thread_work(ThreadPool *threadPool)
+    {
+        std::function<void()> work;
+        bool work_assigned = false;
+        while (!(threadPool->m_join && threadPool->m_work_queue.empty()))
+        {
+            if(threadPool->m_work_queue.empty()) std::this_thread::yield();
+            else
+            {
+                threadPool->m_queue_mutex.lock();
+                if(!threadPool->m_work_queue.empty())
+                {
+                    work = threadPool->m_work_queue.front();
+                    threadPool->m_work_queue.pop();
+                    work_assigned = true;
+                }
+                threadPool->m_queue_mutex.unlock();
+                if(work_assigned) 
+                {
+                    work();
+                    threadPool->m_task_count++;
+                    work_assigned = false;
+                }
+            }
+        }
+    }
+
+    bool m_join = false;
+    std::mutex m_queue_mutex;
+    std::queue<std::function<void()>> m_work_queue;
+    unsigned int m_num_threads;
+    std::vector<std::thread> m_threads;
+    unsigned int m_task_count;
+};
+
 void print_num(const int seed)
 {
     int sum = 0;
@@ -240,6 +319,20 @@ int main()
         {
             t.join();
         }
+    }
+
+    {
+        ThreadPool threadPool(NUM_THREADS);
+        Timer t("thread pool");
+        for(int i=0; i<cycles_count; i++)
+        {
+            for(int j=0; j<NUM_THREADS; j++)
+            {
+                threadPool.assign([i, j]{print_num(i+j);});
+            }
+            threadPool.wait_until(NUM_THREADS);
+        }
+        threadPool.join();
     }
 
     {
