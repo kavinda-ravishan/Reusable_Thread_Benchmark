@@ -178,15 +178,15 @@ private:
     bool m_done;
 };
 
-class ThreadPool
+class ThreadPool_Yield
 {
 public:
-    ThreadPool(unsigned int num_threads=0): m_task_count(0), m_join(false)
+    ThreadPool_Yield(unsigned int num_threads=0): m_task_count(0), m_join(false)
     {
         m_num_threads = (num_threads > 0) ? num_threads : std::thread::hardware_concurrency();
         for(unsigned int i=0; i<m_num_threads; i++)
         {
-            m_threads.emplace_back(std::thread(ThreadPool::thread_work, this));
+            m_threads.emplace_back(std::thread(ThreadPool_Yield::thread_work, this));
         }
     }
 
@@ -212,7 +212,7 @@ public:
         m_task_count = 0;
     }
 
-    ~ThreadPool()
+    ~ThreadPool_Yield()
     {
         m_join = true;
         for(auto& t : m_threads)
@@ -221,7 +221,7 @@ public:
         }
     }
 private:
-    static void thread_work(ThreadPool *threadPool)
+    static void thread_work(ThreadPool_Yield *threadPool)
     {
         std::function<void()> work;
         bool work_assigned = false;
@@ -254,6 +254,91 @@ private:
     unsigned int m_num_threads;
     std::vector<std::thread> m_threads;
     std::atomic_uint16_t m_task_count;
+};
+
+class ThreadPool_Wait
+{
+public:
+    ThreadPool_Wait(unsigned int num_threads=0): m_task_count(0), m_join(false)
+    {
+        m_num_threads = (num_threads > 0) ? num_threads : std::thread::hardware_concurrency();
+        for(unsigned int i=0; i<m_num_threads; i++)
+        {
+            m_threads.emplace_back(std::thread(ThreadPool_Wait::thread_work, this));
+        }
+    }
+
+    void assign(std::function<void()> work)
+    {
+        m_queue_mutex.lock();
+        m_work_queue.push(work);
+        m_queue_mutex.unlock();
+        m_cv.notify_one();
+    }
+
+    void join()
+    {
+        m_join = true;
+        m_cv.notify_all();
+        for(auto& t : m_threads)
+        {
+            if(t.joinable()) t.join();
+        }
+    }
+
+    void wait_until(const unsigned int task_cout)
+    {
+        while (m_task_count < task_cout && !m_join) std::this_thread::yield();
+        m_task_count = 0;
+    }
+
+    ~ThreadPool_Wait()
+    {
+        m_join = true;
+        m_cv.notify_all();
+        for(auto& t : m_threads)
+        {
+            if(t.joinable()) t.join();
+        }
+    }
+private:
+    static void thread_work(ThreadPool_Wait *threadPool)
+    {
+        std::function<void()> work;
+        bool work_assigned = false;
+        std::unique_lock<std::mutex> lck(threadPool->m_cv_mutex, std::defer_lock);
+        while (!(threadPool->m_join && threadPool->m_work_queue.empty()))
+        {
+            lck.lock();
+            threadPool->m_cv.wait(lck, [&threadPool](){return threadPool->m_join || !threadPool->m_work_queue.empty();});
+            lck.unlock();
+ 
+            threadPool->m_queue_mutex.lock();
+            if(!threadPool->m_work_queue.empty())
+            {
+                work = threadPool->m_work_queue.front();
+                threadPool->m_work_queue.pop();
+                work_assigned = true;
+            }
+            threadPool->m_queue_mutex.unlock();
+            if(work_assigned) 
+            {
+                work();
+                threadPool->m_task_count++;
+                threadPool->m_cv.notify_all();
+                work_assigned = false;
+            }
+        }
+    }
+
+    bool m_join;
+    std::mutex m_queue_mutex;
+    std::queue<std::function<void()>> m_work_queue;
+    unsigned int m_num_threads;
+    std::vector<std::thread> m_threads;
+    std::atomic_uint16_t m_task_count;
+    std::condition_variable m_cv;
+    std::mutex m_cv_mutex;
 };
 
 void print_num(const int seed)
@@ -322,8 +407,22 @@ int main()
     }
 
     {
-        ThreadPool threadPool(NUM_THREADS);
-        Timer t("thread pool");
+        ThreadPool_Yield threadPool(NUM_THREADS);
+        Timer t("thread pool yield");
+        for(int i=0; i<cycles_count; i++)
+        {
+            for(int j=0; j<NUM_THREADS; j++)
+            {
+                threadPool.assign([i, j]{print_num(i+j);});
+            }
+            threadPool.wait_until(NUM_THREADS);
+        }
+        threadPool.join();
+    }
+
+    {
+        ThreadPool_Wait threadPool(NUM_THREADS);
+        Timer t("thread pool wait");
         for(int i=0; i<cycles_count; i++)
         {
             for(int j=0; j<NUM_THREADS; j++)
