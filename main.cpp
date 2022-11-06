@@ -273,13 +273,18 @@ public:
         m_queue_mutex.lock();
         m_work_queue.push(work);
         m_queue_mutex.unlock();
+        m_cv_mutex.lock();
+        m_join = true;
         m_cv.notify_one();
+        m_cv_mutex.unlock();
     }
 
     void join()
     {
+        m_cv_mutex.lock();
         m_join = true;
         m_cv.notify_all();
+        m_cv_mutex.unlock();
         for(auto& t : m_threads)
         {
             if(t.joinable()) t.join();
@@ -294,8 +299,10 @@ public:
 
     ~ThreadPool_Wait()
     {
+        m_cv_mutex.lock();
         m_join = true;
         m_cv.notify_all();
+        m_cv_mutex.unlock();
         for(auto& t : m_threads)
         {
             if(t.joinable()) t.join();
