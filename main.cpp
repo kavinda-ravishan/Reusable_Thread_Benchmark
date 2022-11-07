@@ -352,7 +352,7 @@ void print_num(const int seed)
 void comp_reset_results()
 {
     if(result != org_result)
-        std::cerr<<"Result mismatch\n";
+        std::cerr<<"Result mismatch : org val : "<<org_result<<" val : "<<result<<std::endl;
     
     result = 0;
 }
