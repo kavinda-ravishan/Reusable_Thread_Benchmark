@@ -11,8 +11,8 @@
 
 #define NUM_THREADS 4
 
-const int work_count = 10000; 
-const int cycles_count = 10;
+const int work_count = 1000; 
+const int cycles_count = 1000;
 
 struct Timer
 {
@@ -336,6 +336,8 @@ private:
     std::queue<std::function<void()>> m_work_queue;
 };
 
+static int org_result = 0;
+static std::atomic_int result = 0;
 void print_num(const int seed)
 {
     int sum = 0;
@@ -344,7 +346,15 @@ void print_num(const int seed)
     {
         sum += rand()%100;
     }
-    // std::cout<<sum<<std::endl;
+    result += sum;
+}
+
+void comp_reset_results()
+{
+    if(result != org_result)
+        std::cerr<<"Result mismatch\n";
+    
+    result = 0;
 }
 
 int main()
@@ -359,6 +369,8 @@ int main()
             }
         }
     }
+    org_result = result;
+    result = 0;
 
 /*
     {
@@ -416,6 +428,7 @@ int main()
         }
         threadPool.join();
     }
+    comp_reset_results();
 
     {
         ThreadPool_Wait threadPool(NUM_THREADS);
@@ -430,6 +443,7 @@ int main()
         }
         threadPool.join();
     }
+    comp_reset_results();
 
     {
         std::array<ReusableThreadWait, NUM_THREADS> threads;
@@ -450,6 +464,7 @@ int main()
             t.join();
         }
     }
+    comp_reset_results();
 
     {
         std::array<std::thread, NUM_THREADS> threads;
@@ -466,6 +481,7 @@ int main()
             }
         }
     }
+    comp_reset_results();
 
     {
         std::array<std::future<void>, NUM_THREADS> futures;
@@ -482,6 +498,7 @@ int main()
             }
         }
     }
+    comp_reset_results();
 
     return 0;
 }
