@@ -336,8 +336,8 @@ private:
     std::queue<std::function<void()>> m_work_queue;
 };
 
-static std::atomic_int org_result = 0;
-static std::atomic_int result = 0;
+int org_result = 0;
+std::atomic_int result = 0;
 void print_num(const int seed)
 {
     int sum = 0;
