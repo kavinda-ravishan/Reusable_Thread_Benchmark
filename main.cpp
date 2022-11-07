@@ -11,8 +11,8 @@
 
 #define NUM_THREADS 4
 
-const int work_count = 10; 
-const int cycles_count = 10;
+const int work_count = 1000; 
+const int cycles_count = 1000;
 
 struct Timer
 {
@@ -336,8 +336,8 @@ private:
     std::queue<std::function<void()>> m_work_queue;
 };
 
-int org_result = 0;
-std::atomic_int result(0);
+uint64_t org_result = 0;
+std::atomic_uint64_t result(0);
 void print_num(const int seed)
 {
     int sum = 0;
