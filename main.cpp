@@ -341,10 +341,9 @@ std::atomic_int result(0);
 void print_num(const int seed)
 {
     int sum = 0;
-    std::srand(seed);
     for(int i=0; i<work_count; i++)
     {
-        sum += rand()%100;
+        sum += i;
     }
     result += sum;
 }
