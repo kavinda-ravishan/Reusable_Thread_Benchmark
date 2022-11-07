@@ -337,7 +337,7 @@ private:
 };
 
 int org_result = 0;
-std::atomic_int result = 0;
+std::atomic_int result(0);
 void print_num(const int seed)
 {
     int sum = 0;
