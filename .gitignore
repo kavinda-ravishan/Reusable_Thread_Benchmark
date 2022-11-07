@@ -1,4 +1,2 @@
-*.exe
-*.ilk
-*.obj
-*.pdb
+/.vscode
+/build
