@@ -11,8 +11,8 @@
 
 #define NUM_THREADS 8
 
-const int work_count = 10000; 
-const int cycles_count = 100;
+const int work_count = 1000; 
+const int cycles_count = 1000;
 
 struct Timer
 {
@@ -30,8 +30,8 @@ public:
         end = std::chrono::high_resolution_clock::now();
         duration = end - start;
 
-        float ms = duration.count() * 1000.0f;
-        std::cout<<info<<" : " << ms/cycles_count << " ms\n";
+        float ms = duration.count() * 1000000.0f;
+        std::cout<<info<<" : " << ms/cycles_count << " us\n";
     }
 };
 
@@ -208,6 +208,7 @@ public:
 
     void wait_until(const unsigned int task_cout)
     {
+        // wait only if task count not completed and join not called
         while (m_task_count < task_cout && !m_join) std::this_thread::yield();
         m_task_count = 0;
     }
@@ -222,7 +223,7 @@ private:
         std::function<void()> work;
         bool work_assigned = false;
         std::unique_lock<std::mutex> queue_lck(threadPool->m_queue_mutex, std::defer_lock);
-        while (!(threadPool->m_join && threadPool->m_work_queue.empty()))
+        while (!(threadPool->m_join && threadPool->m_work_queue.empty())) //break the loop if only join is called and queue is empty 
         {
             if(threadPool->m_work_queue.empty()) std::this_thread::yield();
             else
@@ -285,6 +286,7 @@ public:
 
     void wait_until(const unsigned int task_cout)
     {
+        // wait only if task count not completed and join not called
         while (m_task_count < task_cout && !m_join) std::this_thread::yield();
         m_task_count = 0;
     }
@@ -300,11 +302,12 @@ private:
         bool work_assigned = false;
         std::unique_lock<std::mutex> cv_lck(threadPool->m_cv_mutex, std::defer_lock);
         std::unique_lock<std::mutex> queue_lck(threadPool->m_queue_mutex, std::defer_lock);
-        while (!(threadPool->m_join && threadPool->m_work_queue.empty()))
+        while (!(threadPool->m_join && threadPool->m_work_queue.empty())) //break the loop if only join is called and queue is empty 
         {
             cv_lck.lock();
-            if(!threadPool->m_join && threadPool->m_work_queue.empty())
-                threadPool->m_cv.wait(cv_lck, [&threadPool](){return threadPool->m_join || !threadPool->m_work_queue.empty();});
+            if(!threadPool->m_join && threadPool->m_work_queue.empty()) //call wait only if join is not called and queue is empty 
+                threadPool->m_cv.wait(cv_lck, [&threadPool]()
+                {return !(!threadPool->m_join && threadPool->m_work_queue.empty());}); //wait only if join is not called and queue is empty
             cv_lck.unlock();
  
             queue_lck.lock();
@@ -357,6 +360,7 @@ int main()
         }
     }
 
+/*
     {
         std::array<ReusableThread, NUM_THREADS> threads;
         Timer t("while loop");
@@ -397,6 +401,7 @@ int main()
             t.join();
         }
     }
+*/
 
     {
         ThreadPool_Yield threadPool(NUM_THREADS);
