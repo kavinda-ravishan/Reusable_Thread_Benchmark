@@ -9,7 +9,7 @@
 #include <array>
 #include <queue>
 
-#define NUM_THREADS 8
+#define NUM_THREADS 4
 
 const int work_count = 1000; 
 const int cycles_count = 1000;
