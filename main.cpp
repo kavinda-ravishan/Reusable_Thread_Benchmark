@@ -11,8 +11,8 @@
 
 #define NUM_THREADS 4
 
-const int work_count = 1000; 
-const int cycles_count = 1000;
+const int work_count = 10; 
+const int cycles_count = 10;
 
 struct Timer
 {
@@ -352,7 +352,7 @@ void print_num(const int seed)
 void comp_reset_results()
 {
     if(result != org_result)
-        std::cerr<<"Result mismatch : org val : "<<org_result<<" val : "<<result<<std::endl;
+        std::cerr<<"Result mismatch : org val, "<<org_result<<", val : "<<result<<std::endl;
     
     result = 0;
 }
