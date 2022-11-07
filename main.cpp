@@ -214,30 +214,27 @@ public:
 
     ~ThreadPool_Yield()
     {
-        m_join = true;
-        for(auto& t : m_threads)
-        {
-            if(t.joinable()) t.join();
-        }
+        join();
     }
 private:
     static void thread_work(ThreadPool_Yield *threadPool)
     {
         std::function<void()> work;
         bool work_assigned = false;
+        std::unique_lock<std::mutex> queue_lck(threadPool->m_queue_mutex, std::defer_lock);
         while (!(threadPool->m_join && threadPool->m_work_queue.empty()))
         {
             if(threadPool->m_work_queue.empty()) std::this_thread::yield();
             else
             {
-                threadPool->m_queue_mutex.lock();
+                queue_lck.lock();
                 if(!threadPool->m_work_queue.empty())
                 {
                     work = threadPool->m_work_queue.front();
                     threadPool->m_work_queue.pop();
                     work_assigned = true;
                 }
-                threadPool->m_queue_mutex.unlock();
+                queue_lck.unlock();
                 if(work_assigned) 
                 {
                     work();
@@ -248,7 +245,7 @@ private:
         }
     }
 
-    bool m_join;
+    std::atomic_bool m_join;
     std::mutex m_queue_mutex;
     std::queue<std::function<void()>> m_work_queue;
     unsigned int m_num_threads;
@@ -273,18 +270,13 @@ public:
         m_queue_mutex.lock();
         m_work_queue.push(work);
         m_queue_mutex.unlock();
-        m_cv_mutex.lock();
-        m_join = true;
         m_cv.notify_one();
-        m_cv_mutex.unlock();
     }
 
     void join()
     {
-        m_cv_mutex.lock();
         m_join = true;
         m_cv.notify_all();
-        m_cv_mutex.unlock();
         for(auto& t : m_threads)
         {
             if(t.joinable()) t.join();
@@ -299,53 +291,46 @@ public:
 
     ~ThreadPool_Wait()
     {
-        m_cv_mutex.lock();
-        m_join = true;
-        m_cv.notify_all();
-        m_cv_mutex.unlock();
-        for(auto& t : m_threads)
-        {
-            if(t.joinable()) t.join();
-        }
+        join();
     }
 private:
     static void thread_work(ThreadPool_Wait *threadPool)
     {
         std::function<void()> work;
         bool work_assigned = false;
-        std::unique_lock<std::mutex> lck(threadPool->m_cv_mutex, std::defer_lock);
+        std::unique_lock<std::mutex> cv_lck(threadPool->m_cv_mutex, std::defer_lock);
+        std::unique_lock<std::mutex> queue_lck(threadPool->m_queue_mutex, std::defer_lock);
         while (!(threadPool->m_join && threadPool->m_work_queue.empty()))
         {
-            lck.lock();
-            threadPool->m_cv.wait(lck, [&threadPool](){return threadPool->m_join || !threadPool->m_work_queue.empty();});
-            lck.unlock();
+            cv_lck.lock();
+            if(!threadPool->m_join && threadPool->m_work_queue.empty())
+                threadPool->m_cv.wait(cv_lck, [&threadPool](){return threadPool->m_join || !threadPool->m_work_queue.empty();});
+            cv_lck.unlock();
  
-            threadPool->m_queue_mutex.lock();
+            queue_lck.lock();
             if(!threadPool->m_work_queue.empty())
             {
                 work = threadPool->m_work_queue.front();
                 threadPool->m_work_queue.pop();
                 work_assigned = true;
             }
-            threadPool->m_queue_mutex.unlock();
+            queue_lck.unlock();
             if(work_assigned) 
             {
                 work();
                 threadPool->m_task_count++;
-                threadPool->m_cv.notify_all();
                 work_assigned = false;
             }
         }
     }
-
-    bool m_join;
-    std::mutex m_queue_mutex;
-    std::queue<std::function<void()>> m_work_queue;
-    unsigned int m_num_threads;
     std::vector<std::thread> m_threads;
-    std::atomic_uint16_t m_task_count;
-    std::condition_variable m_cv;
+    std::mutex m_queue_mutex;
     std::mutex m_cv_mutex;
+    std::condition_variable m_cv;
+    std::atomic_bool m_join;
+    unsigned int m_num_threads;
+    std::atomic_uint16_t m_task_count;
+    std::queue<std::function<void()>> m_work_queue;
 };
 
 void print_num(const int seed)
