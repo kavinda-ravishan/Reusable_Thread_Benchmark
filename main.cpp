@@ -181,7 +181,7 @@ private:
 class ThreadPool_Yield
 {
 public:
-    ThreadPool_Yield(unsigned int num_threads=0): m_task_count(0), m_join(false)
+    ThreadPool_Yield(const unsigned int num_threads=0): m_task_count(0), m_join(false)
     {
         m_num_threads = (num_threads > 0) ? num_threads : std::thread::hardware_concurrency();
         for(unsigned int i=0; i<m_num_threads; i++)
@@ -257,7 +257,7 @@ private:
 class ThreadPool_Wait
 {
 public:
-    ThreadPool_Wait(unsigned int num_threads=0): m_task_count(0), m_join(false)
+    ThreadPool_Wait(const unsigned int num_threads=0): m_task_count(0), m_join(false)
     {
         m_num_threads = (num_threads > 0) ? num_threads : std::thread::hardware_concurrency();
         for(unsigned int i=0; i<m_num_threads; i++)
