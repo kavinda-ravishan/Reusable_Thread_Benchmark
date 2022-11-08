@@ -223,7 +223,8 @@ private:
         std::function<void()> work;
         bool work_assigned = false;
         std::unique_lock<std::mutex> queue_lck(threadPool->m_queue_mutex, std::defer_lock);
-        while (!(threadPool->m_join && threadPool->m_work_queue.empty())) //break the loop if only join is called and queue is empty 
+        //break the loop only if join is called and queue is empty 
+        while (!(threadPool->m_join && threadPool->m_work_queue.empty()))
         {
             if(threadPool->m_work_queue.empty()) std::this_thread::yield();
             else
